@@ -156,24 +156,77 @@ const excuses = {
 
 type ExcuseType = "real" | "ridiculous" | "zen" | "funny"
 
+// 添加一个类型来存储打乱后的序列
+type ShuffledExcuses = {
+  [K in ExcuseType]: string[]
+}
+
 export default function Home() {
   const [excuse, setExcuse] = useState<string>("")
   const [isGenerating, setIsGenerating] = useState<boolean>(false)
   const [excuseType, setExcuseType] = useState<ExcuseType>("real")
   const [typingIndex, setTypingIndex] = useState<number>(0)
+  // 添加状态来存储打乱后的借口序列和当前索引
+  const [shuffledExcuses, setShuffledExcuses] = useState<ShuffledExcuses>({
+    real: [],
+    ridiculous: [],
+    zen: [],
+    funny: []
+  })
+  const [currentIndices, setCurrentIndices] = useState<Record<ExcuseType, number>>({
+    real: 0,
+    ridiculous: 0,
+    zen: 0,
+    funny: 0
+  })
   const { toast } = useToast()
 
-  // Generate a random excuse
+  // Fisher-Yates 洗牌算法
+  const shuffleArray = (array: string[]) => {
+    const shuffled = [...array]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+    return shuffled
+  }
+
+  // 获取下一个借口
+  const getNextExcuse = (type: ExcuseType) => {
+    // 如果当前类别的打乱序列为空或已用完，重新打乱
+    if (shuffledExcuses[type].length === 0 || currentIndices[type] >= shuffledExcuses[type].length) {
+      setShuffledExcuses(prev => ({
+        ...prev,
+        [type]: shuffleArray(excuses[type])
+      }))
+      setCurrentIndices(prev => ({
+        ...prev,
+        [type]: 0
+      }))
+      return excuses[type][0] // 返回第一个元素作为初始值
+    }
+
+    // 获取当前索引的借口
+    const excuse = shuffledExcuses[type][currentIndices[type]]
+    
+    // 更新索引
+    setCurrentIndices(prev => ({
+      ...prev,
+      [type]: prev[type] + 1
+    }))
+
+    return excuse
+  }
+
+  // 修改生成借口的函数
   const generateExcuse = () => {
     setIsGenerating(true)
     setExcuse("")
     setTypingIndex(0)
 
-    const selectedCategory = excuses[excuseType]
-    const randomIndex = Math.floor(Math.random() * selectedCategory.length)
-    const newExcuse = selectedCategory[randomIndex]
+    const newExcuse = getNextExcuse(excuseType)
 
-    // Start the typewriter effect
+    // 开始打字机效果
     const timer = setInterval(() => {
       setTypingIndex((prev) => {
         if (prev < newExcuse.length) {
@@ -188,7 +241,22 @@ export default function Home() {
     }, 50)
   }
 
-  // Copy excuse to clipboard
+  // 当切换类别时重置当前类别的序列
+  const handleExcuseTypeChange = (value: ExcuseType) => {
+    setExcuseType(value)
+    if (shuffledExcuses[value].length === 0) {
+      setShuffledExcuses(prev => ({
+        ...prev,
+        [value]: shuffleArray(excuses[value])
+      }))
+      setCurrentIndices(prev => ({
+        ...prev,
+        [value]: 0
+      }))
+    }
+  }
+
+  // 复制借口到剪贴板
   const copyExcuse = () => {
     if (excuse) {
       navigator.clipboard.writeText(excuse)
@@ -207,7 +275,7 @@ export default function Home() {
       <div className="w-full max-w-md space-y-6">
         <div className="flex flex-col space-y-4">
           <Label htmlFor="excuse-type">选择借口类型</Label>
-          <Select value={excuseType} onValueChange={(value) => setExcuseType(value as ExcuseType)}>
+          <Select value={excuseType} onValueChange={handleExcuseTypeChange}>
             <SelectTrigger id="excuse-type" className="w-full">
               <SelectValue placeholder="选择借口类型" />
             </SelectTrigger>
